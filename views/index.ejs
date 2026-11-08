@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ToolNest - Online Tools for Everyone</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50">
+  <nav class="bg-white shadow-sm">
+    <div class="max-w-6xl mx-auto px-4 py-4 flex justify-between items-center">
+      <a href="/" class="text-2xl font-bold text-blue-600">ToolNest</a>
+      <div>
+        <% if (loggedIn) { %>
+          <a href="/dashboard" class="text-blue-600 hover:underline mr-4">My Tools</a>
+          <a href="/logout" class="text-gray-600">Logout</a>
+        <% } else { %>
+          <a href="/login" class="text-gray-600 mr-4">Login</a>
+          <a href="/register" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">Get Started</a>
+        <% } %>
+      </div>
+    </div>
+  </nav>
+
+  <div class="max-w-6xl mx-auto px-4 py-12 text-center">
+    <h1 class="text-4xl font-bold text-gray-900 mb-4">Online Tools for Everyone</h1>
+    <p class="text-lg text-gray-600 mb-8">Simple, useful tools. One subscription. Always online.</p>
+    <div class="bg-white rounded-xl shadow p-6 inline-block mb-8">
+      <div class="text-3xl font-bold text-blue-600">$<%= price %><span class="text-lg text-gray-500">/month</span></div>
+      <a href="/register" class="mt-4 inline-block bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700">Subscribe</a>
+    </div>
+  </div>
+
+  <!-- Search & Filter -->
+  <div class="max-w-6xl mx-auto px-4 mb-8">
+    <form class="flex flex-col md:flex-row gap-4">
+      <input type="text" name="q" value="<%= q %>" placeholder="Search tools..." class="flex-1 border rounded px-4 py-2">
+      <select name="cat" class="border rounded px-4 py-2">
+        <option value="">All Categories</option>
+        <% categories.forEach(c => { %>
+          <option value="<%= c.id %>" <%= cat === c.id ? 'selected' : '' %>><%= c.icon %> <%= c.name %></option>
+        <% }); %>
+      </select>
+      <button type="submit" class="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700">Search</button>
+    </form>
+  </div>
+
+  <!-- Tools Grid -->
+  <div class="max-w-6xl mx-auto px-4 mb-16">
+    <div class="grid md:grid-cols-3 gap-6">
+      <% if (tools.length === 0) { %>
+        <p class="col-span-3 text-center text-gray-500">No tools found.</p>
+      <% } else { %>
+        <% tools.forEach(tool => { %>
+          <div class="bg-white rounded-lg shadow p-6">
+            <div class="text-4xl mb-3"><%= tool.icon %></div>
+            <h3 class="text-xl font-semibold mb-2"><%= tool.name %></h3>
+            <p class="text-gray-600 text-sm mb-4"><%= tool.description || '' %></p>
+            <div class="flex justify-between items-center text-sm text-gray-500 mb-4">
+              <span><%= categories.find(c => c.id === tool.category)?.name || tool.category %></span>
+              <span>Used <%= tool.usage_count %> times</span>
+            </div>
+            <a href="/tool/<%= tool.id %>" class="block text-center bg-blue-600 text-white py-2 rounded hover:bg-blue-700">Use Tool</a>
+          </div>
+        <% }); %>
+      <% } %>
+    </div>
+  </div>
+
+  <!-- Request Tool -->
+  <div class="bg-white py-12">
+    <div class="max-w-2xl mx-auto px-4 text-center">
+      <h2 class="text-2xl font-bold mb-4">Can't find what you need?</h2>
+      <p class="text-gray-600 mb-6">Tell us what tool you want. We'll consider adding it.</p>
+      <% if (typeof requested !== 'undefined' && requested) { %>
+        <p class="text-green-600 mb-4">Thanks! We'll notify you when it's ready.</p>
+      <% } %>
+      <form action="/request-tool" method="POST" class="space-y-4">
+        <input type="email" name="email" required placeholder="Your email" class="w-full border rounded px-4 py-2">
+        <textarea name="request" required placeholder="Describe the tool you want..." class="w-full border rounded px-4 py-2" rows="3"></textarea>
+        <button type="submit" class="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700">Submit Request</button>
+      </form>
+    </div>
+  </div>
+
+  <footer class="bg-gray-800 text-white py-8 text-center text-sm mt-8">
+    <p>ToolNest &copy; 2026</p>
+  </footer>
+</body>
+</html>

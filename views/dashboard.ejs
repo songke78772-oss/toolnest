@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>My Tools - ToolNest</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50">
+  <nav class="bg-white shadow-sm">
+    <div class="max-w-6xl mx-auto px-4 py-4 flex justify-between items-center">
+      <a href="/" class="text-2xl font-bold text-blue-600">ToolNest</a>
+      <div>
+        <span class="text-gray-600 mr-4"><%= user.email %></span>
+        <a href="/logout" class="text-gray-600">Logout</a>
+      </div>
+    </div>
+  </nav>
+
+  <div class="max-w-4xl mx-auto px-4 py-8">
+    <div class="bg-white rounded-lg shadow p-6 mb-8">
+      <h2 class="text-xl font-bold mb-2">Subscription</h2>
+      <p>Status: <span class="<%= user.subscription_status === 'active' ? 'text-green-600' : 'text-red-600' %>"><%= user.subscription_status %></span></p>
+      <% if (user.subscription_status !== 'active') { %>
+        <a href="/register" class="mt-4 inline-block bg-blue-600 text-white px-4 py-2 rounded">Subscribe $1.99/month</a>
+      <% } %>
+    </div>
+
+    <div class="bg-white rounded-lg shadow p-6 mb-8">
+      <h2 class="text-xl font-bold mb-4">My Favorites</h2>
+      <% if (favorites.length === 0) { %>
+        <p class="text-gray-500">No favorites yet. Browse tools and add some!</p>
+      <% } else { %>
+        <div class="space-y-3">
+          <% favorites.forEach(t => { %>
+            <div class="flex justify-between items-center border-b pb-2">
+              <div>
+                <span class="text-2xl mr-2"><%= t.icon %></span>
+                <span class="font-medium"><%= t.name %></span>
+              </div>
+              <a href="/tool/<%= t.id %>" class="text-blue-600 hover:underline">Use</a>
+            </div>
+          <% }); %>
+        </div>
+      <% } %>
+    </div>
+
+    <div class="bg-white rounded-lg shadow p-6">
+      <h2 class="text-xl font-bold mb-4">My Usage</h2>
+      <% if (usage.length === 0) { %>
+        <p class="text-gray-500">No usage yet.</p>
+      <% } else { %>
+        <ul class="space-y-2">
+          <% usage.forEach(u => { %>
+            <li class="flex justify-between"><span><%= u.name %></span><span class="text-gray-500"><%= u.count %> times</span></li>
+          <% }); %>
+        </ul>
+      <% } %>
+    </div>
+  </div>
+</body>
+</html>

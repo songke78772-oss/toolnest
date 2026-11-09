@@ -6,10 +6,15 @@ const path = require('path');
 const Database = require('better-sqlite3');
 const crypto = require('crypto');
 const { Resend } = require('resend');
+const multer = require('multer');
+const FormData = require('form-data');
+const fs = require('fs');
+const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args));
 
 const app = express();
 const db = new Database(path.join(__dirname, 'data', 'app.db'));
 const resend = new Resend(process.env.RESEND_API_KEY);
+const upload = multer({ dest: 'uploads/' });
 
 db.exec(`
   CREATE TABLE IF NOT EXISTS users (
@@ -100,7 +105,6 @@ app.post('/register', async (req, res) => {
   const code = Math.floor(100000 + Math.random() * 900000).toString();
   db.prepare('INSERT INTO users (email, password_hash, verification_code) VALUES (?, ?, ?)').run(email, hash, code);
 
-  // 发送验证邮件
   try {
     await resend.emails.send({
       from: 'ToolNest <onboarding@resend.dev>',
@@ -214,12 +218,47 @@ app.get('/tool/:id', requireValidSession, (req, res) => {
   if (!tool || !tool.url) {
     return res.status(404).send('Tool not found');
   }
-
-  // 记录使用次数
   db.prepare('UPDATE tools SET usage_count = COALESCE(usage_count, 0) + 1 WHERE id = ?').run(tool.id);
-
-  // 跳转到真实地址
   res.redirect(tool.url);
+});
+
+// PDF 转换页面
+app.get('/pdf-converter', requireValidSession, (req, res) => {
+  res.render('pdf-converter');
+});
+
+// 转换 API
+app.post('/api/convert-to-pdf', requireValidSession, upload.single('file'), async (req, res) => {
+  if (!req.file) return res.json({ success: false, error: 'No file' });
+
+  try {
+    const form = new FormData();
+    form.append('files', fs.createReadStream(req.file.path), req.file.originalname);
+
+    const response = await fetch('http://127.0.0.1:3001/forms/libreoffice/convert', {
+      method: 'POST',
+      body: form,
+      headers: form.getHeaders()
+    });
+
+    if (!response.ok) throw new Error('Gotenberg error');
+
+    const outDir = path.join(__dirname, 'public', 'converted');
+    if (!fs.existsSync(outDir)) fs.mkdirSync(outDir, { recursive: true });
+
+    const filename = Date.now() + '.pdf';
+    const outPath = path.join(outDir, filename);
+    const buffer = Buffer.from(await response.arrayBuffer());
+    fs.writeFileSync(outPath, buffer);
+
+    fs.unlinkSync(req.file.path);
+
+    res.json({ success: true, url: '/converted/' + filename });
+  } catch (err) {
+    console.error(err);
+    if (req.file && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+    res.json({ success: false, error: 'Conversion failed' });
+  }
 });
 
 const PORT = process.env.PORT || 3000;

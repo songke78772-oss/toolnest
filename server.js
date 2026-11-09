@@ -69,7 +69,8 @@ app.get('/', (req, res) => {
   res.render('index', { 
     tools, 
     loggedIn: !!req.session.userId,
-    user: req.session.user || null 
+    user: req.session.user || null,
+    price: '1.99'
   });
 });
 

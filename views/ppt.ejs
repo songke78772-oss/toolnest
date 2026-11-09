@@ -4,21 +4,31 @@
   <meta charset="UTF-8">
   <title>AI PPT Generator</title>
   <style>
-    body, html { margin: 0; padding: 0; height: 100%; overflow: hidden; background: #fff; }
-    .wrapper { position: relative; width: 100%; height: 100vh; }
-    iframe { 
-      width: 100%; 
-      height: 100%; 
-      border: none; 
-      margin-top: -70px; /* 向上偏移，把顶部红圈部分挤出可视区 */
+    body, html {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      overflow: hidden;
+      background: #ffffff;
     }
-    /* 可选：再加一层白色遮罩，确保完全盖住 */
+    .wrapper {
+      position: relative;
+      width: 100%;
+      height: 100vh;
+    }
+    iframe {
+      width: 100%;
+      height: calc(100% + 80px);
+      border: none;
+      margin-top: -80px; /* 把顶部红圈部分挤出可视区域 */
+    }
+    /* 白色遮罩，确保完全盖住 */
     .mask-top {
       position: absolute;
       top: 0;
       left: 0;
       right: 0;
-      height: 70px;
+      height: 80px;
       background: #ffffff;
       z-index: 10;
       pointer-events: none;
@@ -29,8 +39,7 @@
   <div class="wrapper">
     <div class="mask-top"></div>
     <iframe src="http://192.255.128.40/ppt/" 
-        allow="fullscreen; clipboard-read; clipboard-write"
-        style="width:100%;height:100%;border:none;margin-top:-80px;"></iframe>
+            allow="fullscreen; clipboard-read; clipboard-write"></iframe>
   </div>
 </body>
 </html>

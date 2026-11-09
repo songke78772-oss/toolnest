@@ -56,7 +56,11 @@ function requireValidSession(req, res, next) {
 
 app.get('/', (req, res) => {
   const tools = db.prepare('SELECT * FROM tools ORDER BY id DESC').all();
-  res.render('index', { tools, loggedIn: !!req.session.userId });
+  res.render('index', { 
+    tools, 
+    loggedIn: !!req.session.userId,
+    price: '1.99'
+  });
 });
 
 app.get('/register', (req, res) => {

@@ -36,6 +36,7 @@ db.exec(`
     icon TEXT DEFAULT '🔧',
     filename TEXT,
     version TEXT DEFAULT '1.0',
+    usage_count INTEGER DEFAULT 0,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
 `);
@@ -93,6 +94,19 @@ app.get('/', (req, res) => {
     q,
     cat,
     categories
+  });
+});
+
+// Tool detail page
+app.get('/tool/:id', requireLogin, (req, res) => {
+  const tool = db.prepare('SELECT * FROM tools WHERE id = ?').get(req.params.id);
+  if (!tool) return res.status(404).send('Tool not found');
+
+  db.prepare('UPDATE tools SET usage_count = COALESCE(usage_count, 0) + 1 WHERE id = ?').run(tool.id);
+
+  res.render('tool', { 
+    tool, 
+    user: req.session.user || null 
   });
 });
 

@@ -60,7 +60,7 @@
               <span><%= categories.find(c => c.id === tool.category)?.name || tool.category %></span>
               <span>Used <%= tool.usage_count %> times</span>
             </div>
-            <a href="/tool/<%= tool.id %>" target="_blank" class="block text-center bg-blue-600 text-white py-2 rounded hover:bg-blue-700">Use Tool</a>
+            <a href="<%= tool.url %>" target="_blank" class="block text-center bg-blue-600 text-white py-2 rounded hover:bg-blue-700">Use Tool</a>
           </div>
         <% }); %>
       <% } %>

@@ -97,17 +97,21 @@ app.get('/', (req, res) => {
   });
 });
 
-// Tool detail page
+// Tool detail page - auto redirect after login check
 app.get('/tool/:id', requireLogin, (req, res) => {
   const tool = db.prepare('SELECT * FROM tools WHERE id = ?').get(req.params.id);
   if (!tool) return res.status(404).send('Tool not found');
 
+  // 记录使用次数
   db.prepare('UPDATE tools SET usage_count = COALESCE(usage_count, 0) + 1 WHERE id = ?').run(tool.id);
 
-  res.render('tool', { 
-    tool, 
-    user: req.session.user || null 
-  });
+  // 如果有地址，直接跳转
+  if (tool.url) {
+    return res.redirect(tool.url);
+  }
+
+  // 没有地址时显示提示页
+  res.render('tool', { tool, user: req.session.user || null });
 });
 
 // Auth

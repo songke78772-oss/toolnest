@@ -4,17 +4,16 @@ const session = require('express-session');
 const bcrypt = require('bcryptjs');
 const path = require('path');
 const fs = require('fs');
+const multer = require('multer');
+const crypto = require('crypto');
 const Database = require('better-sqlite3');
+const { LemonSqueezy } = require('@lemonsqueezy/lemonsqueezy.js');
 
 const app = express();
+const ls = new LemonSqueezy(process.env.LEMONSQUEEZY_API_KEY);
 
 // Database
-const dbPath = path.join(__dirname, 'data', 'app.db');
-if (!fs.existsSync(path.dirname(dbPath))) {
-  fs.mkdirSync(path.dirname(dbPath), { recursive: true });
-}
-const db = new Database(dbPath);
-
+const db = new Database(path.join(__dirname, 'data', 'app.db'));
 db.exec(`
   CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -30,20 +29,16 @@ db.exec(`
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
     description TEXT,
-    category TEXT DEFAULT 'Office',
-    type TEXT DEFAULT 'online',
-    url TEXT,
-    icon TEXT DEFAULT '🔧',
-    filename TEXT,
+    filename TEXT NOT NULL,
     version TEXT DEFAULT '1.0',
-    usage_count INTEGER DEFAULT 0,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
 `);
 
 // Session
 app.use(session({
-  secret: process.env.SESSION_SECRET || 'toolnest-secret-key-change-me',
+  secret: process.env.SESSION_SECRET || 'fallback-secret-change-me',
   resave: false,
   saveUninitialized: false,
   cookie: { secure: false, maxAge: 7 * 24 * 60 * 60 * 1000 }
@@ -55,99 +50,175 @@ app.use(express.static(path.join(__dirname, 'public')));
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
 
-// Middleware
+// Multer
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, path.join(__dirname, 'uploads')),
+  filename: (req, file, cb) => {
+    const unique = Date.now() + '-' + Math.round(Math.random() * 1e9);
+    cb(null, unique + '-' + file.originalname);
+  }
+});
+const upload = multer({ storage, limits: { fileSize: 100 * 1024 * 1024 } });
+
 function requireLogin(req, res, next) {
   if (!req.session.userId) return res.redirect('/login');
   next();
 }
 
-// ========== Routes ==========
+function requireSubscription(req, res, next) {
+  if (!req.session.userId) return res.redirect('/login');
+  const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.session.userId);
+  if (!user || user.subscription_status !== 'active') {
+    return res.redirect('/dashboard?need_sub=1');
+  }
+  req.user = user;
+  next();
+}
 
 // Home
 app.get('/', (req, res) => {
-  const q = req.query.q || '';
-  const cat = req.query.cat || '';
-
-  let sql = 'SELECT * FROM tools';
-  const params = [];
-  const conditions = [];
-
-  if (q) {
-    conditions.push('(name LIKE ? OR description LIKE ?)');
-    params.push(`%${q}%`, `%${q}%`);
-  }
-  if (cat) {
-    conditions.push('category = ?');
-    params.push(cat);
-  }
-  if (conditions.length) sql += ' WHERE ' + conditions.join(' AND ');
-  sql += ' ORDER BY id DESC';
-
-  const tools = db.prepare(sql).all(...params);
-  const categories = db.prepare("SELECT DISTINCT category FROM tools WHERE category IS NOT NULL AND category != ''").all().map(r => r.category);
-
-  res.render('index', {
-    tools,
+  const toolsCount = db.prepare('SELECT COUNT(*) as c FROM tools').get().c;
+  res.render('index', { 
     loggedIn: !!req.session.userId,
-    user: req.session.user || null,
-    price: '1.99',
-    q,
-    cat,
-    categories
+    toolsCount,
+    price: '1.99'
   });
 });
 
-app.get('/pdf-converter', requireLogin, (req, res) => {
-  res.render('pdf-converter');
+// Register
+app.get('/register', (req, res) => {
+  res.render('register', { error: null });
 });
-
-// Tool detail page - auto redirect after login check
-app.get('/tool/:id', requireLogin, (req, res) => {
-  const tool = db.prepare('SELECT * FROM tools WHERE id = ?').get(req.params.id);
-  if (!tool) return res.status(404).send('Tool not found');
-
-  // 记录使用次数
-  db.prepare('UPDATE tools SET usage_count = COALESCE(usage_count, 0) + 1 WHERE id = ?').run(tool.id);
-
-  // 如果有地址，直接跳转
-  if (tool.url) {
-    return res.redirect(tool.url);
-  }
-
-  // 没有地址时显示提示页
-  res.render('tool', { tool, user: req.session.user || null });
-});
-
-// Auth
-app.get('/login', (req, res) => res.render('login', { error: null }));
-app.get('/register', (req, res) => res.render('register', { error: null }));
 
 app.post('/register', async (req, res) => {
   const { email, password } = req.body;
-  if (!email || !password) return res.render('register', { error: 'All fields required' });
-  const hash = await bcrypt.hash(password, 10);
-  try {
-    db.prepare('INSERT INTO users (email, password_hash) VALUES (?, ?)').run(email, hash);
-    res.redirect('/login');
-  } catch {
-    res.render('register', { error: 'Email already exists' });
+  if (!email || !password || password.length < 6) {
+    return res.render('register', { error: 'Email and password (min 6 chars) required' });
   }
+  try {
+    const hash = await bcrypt.hash(password, 10);
+    const result = db.prepare('INSERT INTO users (email, password_hash) VALUES (?, ?)').run(email.toLowerCase(), hash);
+    req.session.userId = result.lastInsertRowid;
+    res.redirect('/dashboard');
+  } catch (e) {
+    if (e.code === 'SQLITE_CONSTRAINT_UNIQUE') {
+      return res.render('register', { error: 'Email already registered' });
+    }
+    res.render('register', { error: 'Registration failed' });
+  }
+});
+
+// Login
+app.get('/login', (req, res) => {
+  res.render('login', { error: null });
 });
 
 app.post('/login', async (req, res) => {
   const { email, password } = req.body;
-  const user = db.prepare('SELECT * FROM users WHERE email = ?').get(email);
+  const user = db.prepare('SELECT * FROM users WHERE email = ?').get(email.toLowerCase());
   if (!user || !(await bcrypt.compare(password, user.password_hash))) {
     return res.render('login', { error: 'Invalid email or password' });
   }
   req.session.userId = user.id;
-  req.session.user = { id: user.id, email: user.email };
-  res.redirect('/');
+  res.redirect('/dashboard');
 });
 
 app.get('/logout', (req, res) => {
   req.session.destroy();
   res.redirect('/');
+});
+
+// Dashboard
+app.get('/dashboard', requireLogin, (req, res) => {
+  const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.session.userId);
+  const tools = db.prepare('SELECT * FROM tools ORDER BY updated_at DESC').all();
+  res.render('dashboard', { 
+    user, 
+    tools, 
+    needSub: req.query.need_sub,
+    publishableKey: '',
+    priceId: ''
+  });
+});
+
+// Create Lemon Squeezy Checkout
+app.post('/create-checkout-session', requireLogin, async (req, res) => {
+  try {
+    const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.session.userId);
+
+    const checkout = await ls.checkouts.create({
+      storeId: process.env.LEMONSQUEEZY_STORE_ID,
+      variantId: process.env.LEMONSQUEEZY_VARIANT_ID,
+      checkoutData: {
+        email: user.email,
+        custom: { user_id: user.id.toString() }
+      },
+      checkoutOptions: {
+        embed: false,
+        media: false,
+        logo: true
+      },
+      productOptions: {
+        redirectUrl: `${process.env.APP_URL}/success`,
+        receiptButtonText: 'Go to Dashboard',
+        receiptThankYouNote: 'Thanks for subscribing!'
+      }
+    });
+
+    res.json({ url: checkout.data.attributes.url });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Success
+app.get('/success', requireLogin, (req, res) => {
+  res.render('success');
+});
+
+// Download (protected)
+app.get('/download/:id', requireSubscription, (req, res) => {
+  const tool = db.prepare('SELECT * FROM tools WHERE id = ?').get(req.params.id);
+  if (!tool) return res.status(404).send('Tool not found');
+  const filePath = path.join(__dirname, 'uploads', tool.filename);
+  if (!fs.existsSync(filePath)) return res.status(404).send('File missing');
+  res.download(filePath, tool.name.replace(/\s+/g, '-') + '-' + tool.version + path.extname(tool.filename));
+});
+
+// Lemon Squeezy Webhook
+app.post('/webhook', express.raw({ type: 'application/json' }), (req, res) => {
+  const signature = req.headers['x-signature'];
+  const secret = process.env.LEMONSQUEEZY_WEBHOOK_SECRET || '';
+
+  const hmac = crypto.createHmac('sha256', secret);
+  const digest = Buffer.from(hmac.update(req.body).digest('hex'), 'utf8');
+  const signatureBuffer = Buffer.from(signature || '', 'utf8');
+
+  if (secret && !crypto.timingSafeEqual(digest, signatureBuffer)) {
+    return res.status(401).send('Invalid signature');
+  }
+
+  const event = JSON.parse(req.body.toString());
+
+  if (event.meta.event_name === 'subscription_created' || event.meta.event_name === 'subscription_updated') {
+    const sub = event.data.attributes;
+    const userId = event.meta.custom_data?.user_id;
+    if (userId) {
+      const status = sub.status === 'active' ? 'active' : 'inactive';
+      db.prepare('UPDATE users SET subscription_status = ?, subscription_id = ? WHERE id = ?')
+        .run(status, event.data.id, userId);
+    }
+  }
+
+  if (event.meta.event_name === 'subscription_cancelled' || event.meta.event_name === 'subscription_expired') {
+    const userId = event.meta.custom_data?.user_id;
+    if (userId) {
+      db.prepare('UPDATE users SET subscription_status = ? WHERE id = ?').run('inactive', userId);
+    }
+  }
+
+  res.json({ received: true });
 });
 
 // Admin
@@ -157,7 +228,7 @@ app.get('/admin', (req, res) => {
 });
 
 app.post('/admin/login', (req, res) => {
-  if (req.body.password === (process.env.ADMIN_PASSWORD || 'admin123')) {
+  if (req.body.password === process.env.ADMIN_PASSWORD) {
     req.session.isAdmin = true;
     return res.redirect('/admin/dashboard');
   }
@@ -167,29 +238,31 @@ app.post('/admin/login', (req, res) => {
 app.get('/admin/dashboard', (req, res) => {
   if (!req.session.isAdmin) return res.redirect('/admin');
   const tools = db.prepare('SELECT * FROM tools ORDER BY id DESC').all();
-  const users = db.prepare('SELECT id, email, subscription_status, created_at FROM users ORDER BY id DESC').all();
-  res.render('admin', { tools, users });
+  res.render('admin', { tools });
 });
 
-app.post('/admin/add-tool', (req, res) => {
-  if (!req.session.isAdmin) return res.redirect('/admin');
-  const { name, description, category, type, url, icon } = req.body;
-  if (!name) return res.redirect('/admin/dashboard');
-  db.prepare(`
-    INSERT INTO tools (name, description, category, type, url, icon)
-    VALUES (?, ?, ?, ?, ?, ?)
-  `).run(name, description || '', category || 'Office', type || 'online', url || '', icon || '🔧');
+app.post('/admin/upload', upload.single('file'), (req, res) => {
+  if (!req.session.isAdmin) return res.status(403).send('Forbidden');
+  const { name, description, version } = req.body;
+  if (!req.file || !name) return res.redirect('/admin/dashboard?error=missing');
+  db.prepare('INSERT INTO tools (name, description, filename, version) VALUES (?, ?, ?, ?)')
+    .run(name, description || '', req.file.filename, version || '1.0');
   res.redirect('/admin/dashboard');
 });
 
 app.post('/admin/delete/:id', (req, res) => {
-  if (!req.session.isAdmin) return res.redirect('/admin');
-  db.prepare('DELETE FROM tools WHERE id = ?').run(req.params.id);
+  if (!req.session.isAdmin) return res.status(403).send('Forbidden');
+  const tool = db.prepare('SELECT * FROM tools WHERE id = ?').get(req.params.id);
+  if (tool) {
+    const filePath = path.join(__dirname, 'uploads', tool.filename);
+    if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+    db.prepare('DELETE FROM tools WHERE id = ?').run(req.params.id);
+  }
   res.redirect('/admin/dashboard');
 });
 
-// Start
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-  console.log(`ToolNest running on port ${PORT}`);
+  console.log(`Office Tools Pro running on port ${PORT}`);
+  console.log(`Local: http://localhost:${PORT}`);
 });

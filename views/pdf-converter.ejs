@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>PDF Converter - ToolNest</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50 min-h-screen">
+  <div class="max-w-xl mx-auto py-12 px-4">
+    <a href="/" class="text-blue-600 text-sm">← Back</a>
+    <h1 class="text-2xl font-bold mt-4 mb-6">Convert to PDF</h1>
+
+    <div class="bg-white rounded-lg shadow p-6">
+      <form id="form" class="space-y-4">
+        <div>
+          <label class="block text-sm font-medium mb-1">Select File</label>
+          <input type="file" name="file" id="file" required
+            accept=".doc,.docx,.xls,.xlsx,.ppt,.pptx,.odt,.ods,.odp,.txt,.rtf,.html,.htm"
+            class="w-full border rounded px-3 py-2">
+          <p class="text-xs text-gray-500 mt-1">Supports Word, Excel, PPT, ODT, HTML, TXT</p>
+        </div>
+        <button type="submit" id="btn"
+          class="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700 disabled:opacity-50">
+          Convert to PDF
+        </button>
+      </form>
+
+      <div id="status" class="mt-4 text-sm hidden"></div>
+      <a id="download" class="hidden mt-4 inline-block bg-green-600 text-white px-4 py-2 rounded" download>
+        Download PDF
+      </a>
+    </div>
+  </div>
+
+  <script>
+    const form = document.getElementById('form');
+    const btn = document.getElementById('btn');
+    const status = document.getElementById('status');
+    const download = document.getElementById('download');
+
+    form.onsubmit = async (e) => {
+      e.preventDefault();
+      const file = document.getElementById('file').files[0];
+      if (!file) return;
+
+      btn.disabled = true;
+      btn.textContent = 'Converting...';
+      status.className = 'mt-4 text-sm text-blue-600';
+      status.textContent = 'Uploading and converting...';
+      status.classList.remove('hidden');
+      download.classList.add('hidden');
+
+      const fd = new FormData();
+      fd.append('file', file);
+
+      try {
+        const res = await fetch('/api/convert-to-pdf', { method: 'POST', body: fd });
+        const data = await res.json();
+
+        if (data.success) {
+          status.className = 'mt-4 text-sm text-green-600';
+          status.textContent = 'Done!';
+          download.href = data.url;
+          download.classList.remove('hidden');
+        } else {
+          status.className = 'mt-4 text-sm text-red-600';
+          status.textContent = data.error || 'Conversion failed';
+        }
+      } catch (err) {
+        status.className = 'mt-4 text-sm text-red-600';
+        status.textContent = 'Network error';
+      }
+
+      btn.disabled = false;
+      btn.textContent = 'Convert to PDF';
+    };
+  </script>
+</body>
+</html>

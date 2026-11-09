@@ -83,7 +83,7 @@ app.get('/', (req, res) => {
   sql += ' ORDER BY id DESC';
 
   const tools = db.prepare(sql).all(...params);
-  const categories = db.prepare('SELECT DISTINCT category FROM tools WHERE category IS NOT NULL AND category != ""').all().map(r => r.category);
+  const categories = db.prepare("SELECT DISTINCT category FROM tools WHERE category IS NOT NULL AND category != ''").all().map(r => r.category);
 
   res.render('index', {
     tools,

@@ -56,7 +56,7 @@ function requireValidSession(req, res, next) {
 
 app.get('/', (req, res) => {
   const tools = db.prepare('SELECT * FROM tools ORDER BY id DESC').all();
-  res.render('index', { tools, user: req.session.userId });
+  res.render('index', { tools, loggedIn: !!req.session.userId });
 });
 
 app.get('/register', (req, res) => {
@@ -124,7 +124,6 @@ app.get('/dashboard', requireValidSession, (req, res) => {
   res.render('dashboard', { user });
 });
 
-// Admin
 app.get('/admin', (req, res) => {
   if (req.session.isAdmin) return res.redirect('/admin/dashboard');
   res.render('admin-login', { error: null });

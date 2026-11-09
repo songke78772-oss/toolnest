@@ -227,6 +227,11 @@ app.get('/pdf-converter', requireValidSession, (req, res) => {
   res.render('pdf-converter');
 });
 
+// AI PPT 工具（二次封装）
+app.get('/ppt', requireLogin, (req, res) => {
+  res.render('ppt');
+});
+
 // 转换 API
 app.post('/api/convert-to-pdf', requireValidSession, upload.single('file'), async (req, res) => {
   if (!req.file) return res.json({ success: false, error: 'No file' });

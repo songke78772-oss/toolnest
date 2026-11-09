@@ -158,8 +158,9 @@ app.get('/logout', (req, res) => {
 
 app.get('/dashboard', requireValidSession, (req, res) => {
   const user = db.prepare('SELECT email FROM users WHERE id = ?').get(req.session.userId);
-  const favorites = []; // 暂时为空，后面再实现收藏功能
-  res.render('dashboard', { user, favorites });
+  const favorites = [];
+  const usage = [];
+  res.render('dashboard', { user, favorites, usage });
 });
 
 app.get('/admin', (req, res) => {

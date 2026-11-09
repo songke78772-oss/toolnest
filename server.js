@@ -121,9 +121,11 @@ app.get('/verify', (req, res) => {
 app.post('/verify', (req, res) => {
   const { email, code } = req.body;
   const user = db.prepare('SELECT * FROM users WHERE email = ?').get(email);
-  if (!user || user.verification_code !== code) {
+  
+  if (!user || String(user.verification_code).trim() !== String(code).trim()) {
     return res.render('verify', { email, error: 'Invalid verification code' });
   }
+  
   db.prepare('UPDATE users SET verified = 1, verification_code = NULL WHERE id = ?').run(user.id);
   res.redirect('/login?verified=1');
 });

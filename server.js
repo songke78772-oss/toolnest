@@ -4,16 +4,15 @@ const session = require('express-session');
 const bcrypt = require('bcryptjs');
 const path = require('path');
 const fs = require('fs');
-const multer = require('multer');
-const Stripe = require('stripe');
 const Database = require('better-sqlite3');
 
 const app = express();
-const stripe = process.env.STRIPE_SECRET_KEY ? Stripe(process.env.STRIPE_SECRET_KEY) : null;
 
 // Database
 const dbPath = path.join(__dirname, 'data', 'app.db');
-if (!fs.existsSync(path.dirname(dbPath))) fs.mkdirSync(path.dirname(dbPath), { recursive: true });
+if (!fs.existsSync(path.dirname(dbPath))) {
+  fs.mkdirSync(path.dirname(dbPath), { recursive: true });
+}
 const db = new Database(dbPath);
 
 db.exec(`
@@ -65,12 +64,35 @@ function requireLogin(req, res, next) {
 
 // Home
 app.get('/', (req, res) => {
-  const tools = db.prepare('SELECT * FROM tools ORDER BY id DESC').all();
-  res.render('index', { 
-    tools, 
+  const q = req.query.q || '';
+  const cat = req.query.cat || '';
+
+  let sql = 'SELECT * FROM tools';
+  const params = [];
+  const conditions = [];
+
+  if (q) {
+    conditions.push('(name LIKE ? OR description LIKE ?)');
+    params.push(`%${q}%`, `%${q}%`);
+  }
+  if (cat) {
+    conditions.push('category = ?');
+    params.push(cat);
+  }
+  if (conditions.length) sql += ' WHERE ' + conditions.join(' AND ');
+  sql += ' ORDER BY id DESC';
+
+  const tools = db.prepare(sql).all(...params);
+  const categories = db.prepare('SELECT DISTINCT category FROM tools WHERE category IS NOT NULL AND category != ""').all().map(r => r.category);
+
+  res.render('index', {
+    tools,
     loggedIn: !!req.session.userId,
     user: req.session.user || null,
-    price: '1.99'
+    price: '1.99',
+    q,
+    cat,
+    categories
   });
 });
 
@@ -141,13 +163,6 @@ app.post('/admin/delete/:id', (req, res) => {
   if (!req.session.isAdmin) return res.redirect('/admin');
   db.prepare('DELETE FROM tools WHERE id = ?').run(req.params.id);
   res.redirect('/admin/dashboard');
-});
-
-// Tool page (optional)
-app.get('/tool/:id', requireLogin, (req, res) => {
-  const tool = db.prepare('SELECT * FROM tools WHERE id = ?').get(req.params.id);
-  if (!tool) return res.redirect('/');
-  res.render('tool', { tool });
 });
 
 // Start

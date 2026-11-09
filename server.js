@@ -55,11 +55,28 @@ function requireValidSession(req, res, next) {
 }
 
 app.get('/', (req, res) => {
-  const tools = db.prepare('SELECT * FROM tools ORDER BY id DESC').all();
+  const q = req.query.q || '';
+  const cat = req.query.cat || '';
+  let tools = db.prepare('SELECT * FROM tools ORDER BY id DESC').all();
+
+  if (q) {
+    const lower = q.toLowerCase();
+    tools = tools.filter(t => 
+      t.name.toLowerCase().includes(lower) || 
+      (t.description || '').toLowerCase().includes(lower)
+    );
+  }
+  if (cat) tools = tools.filter(t => t.category === cat);
+
+  const categories = [...new Set(db.prepare('SELECT DISTINCT category FROM tools').all().map(t => t.category))];
+
   res.render('index', { 
     tools, 
     loggedIn: !!req.session.userId,
-    price: '1.99'
+    price: '1.99',
+    q,
+    cat,
+    categories
   });
 });
 

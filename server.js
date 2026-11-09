@@ -5,9 +5,11 @@ const bcrypt = require('bcryptjs');
 const path = require('path');
 const Database = require('better-sqlite3');
 const crypto = require('crypto');
+const { Resend } = require('resend');
 
 const app = express();
 const db = new Database(path.join(__dirname, 'data', 'app.db'));
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 db.exec(`
   CREATE TABLE IF NOT EXISTS users (
@@ -96,7 +98,19 @@ app.post('/register', async (req, res) => {
   const hash = await bcrypt.hash(password, 10);
   const code = Math.floor(100000 + Math.random() * 900000).toString();
   db.prepare('INSERT INTO users (email, password_hash, verification_code) VALUES (?, ?, ?)').run(email, hash, code);
-  console.log(`Verification code for ${email}: ${code}`);
+
+  // 发送验证邮件
+  try {
+    await resend.emails.send({
+      from: 'ToolNest <onboarding@resend.dev>',
+      to: email,
+      subject: 'Your ToolNest Verification Code',
+      html: `<p>Your verification code is: <strong>${code}</strong></p><p>This code expires in 10 minutes.</p>`
+    });
+  } catch (err) {
+    console.error('Email error:', err);
+  }
+
   res.render('verify', { email, error: null });
 });
 

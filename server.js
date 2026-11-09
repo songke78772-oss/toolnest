@@ -97,6 +97,10 @@ app.get('/', (req, res) => {
   });
 });
 
+app.get('/pdf-converter', requireLogin, (req, res) => {
+  res.render('pdf-converter');
+});
+
 // Tool detail page - auto redirect after login check
 app.get('/tool/:id', requireLogin, (req, res) => {
   const tool = db.prepare('SELECT * FROM tools WHERE id = ?').get(req.params.id);

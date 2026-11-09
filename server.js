@@ -66,7 +66,11 @@ function requireLogin(req, res, next) {
 // Home
 app.get('/', (req, res) => {
   const tools = db.prepare('SELECT * FROM tools ORDER BY id DESC').all();
-  res.render('index', { tools, user: req.session.user || null });
+  res.render('index', { 
+    tools, 
+    loggedIn: !!req.session.userId,
+    user: req.session.user || null 
+  });
 });
 
 // Auth

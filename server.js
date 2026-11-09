@@ -29,6 +29,7 @@ db.exec(`
     icon TEXT DEFAULT '🔧',
     url TEXT,
     category TEXT DEFAULT 'Office',
+    usage_count INTEGER DEFAULT 0,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
 `);
@@ -205,6 +206,20 @@ app.post('/admin/delete-user/:id', (req, res) => {
 app.get('/admin/logout', (req, res) => {
   req.session.isAdmin = false;
   res.redirect('/admin');
+});
+
+// 工具跳转（需要登录）
+app.get('/tool/:id', requireValidSession, (req, res) => {
+  const tool = db.prepare('SELECT * FROM tools WHERE id = ?').get(req.params.id);
+  if (!tool || !tool.url) {
+    return res.status(404).send('Tool not found');
+  }
+
+  // 记录使用次数
+  db.prepare('UPDATE tools SET usage_count = COALESCE(usage_count, 0) + 1 WHERE id = ?').run(tool.id);
+
+  // 跳转到真实地址
+  res.redirect(tool.url);
 });
 
 const PORT = process.env.PORT || 3000;
